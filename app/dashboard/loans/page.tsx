@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Check, Clock, Download, FileText, Filter, MoreHorizontal, Search, ThumbsDown, ThumbsUp } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -18,84 +18,25 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import axios from "axios"
 
-// Sample loan data
-const loans = [
-  {
-    id: "L-2023-001",
-    user: "John Doe",
-    amount: 5000,
-    term: 12,
-    status: "pending",
-    date: "2023-07-15",
-    purpose: "Home Renovation",
-  },
-  {
-    id: "L-2023-002",
-    user: "Jane Smith",
-    amount: 10000,
-    term: 24,
-    status: "approved",
-    date: "2023-07-10",
-    purpose: "Education",
-  },
-  {
-    id: "L-2023-003",
-    user: "Robert Johnson",
-    amount: 7500,
-    term: 18,
-    status: "rejected",
-    date: "2023-07-05",
-    purpose: "Debt Consolidation",
-  },
-  {
-    id: "L-2023-004",
-    user: "Emily Davis",
-    amount: 15000,
-    term: 36,
-    status: "ongoing",
-    date: "2023-06-28",
-    purpose: "Business",
-  },
-  {
-    id: "L-2023-005",
-    user: "Michael Wilson",
-    amount: 3000,
-    term: 6,
-    status: "completed",
-    date: "2023-06-15",
-    purpose: "Medical Expenses",
-  },
-  {
-    id: "L-2023-006",
-    user: "Sarah Brown",
-    amount: 8000,
-    term: 24,
-    status: "pending",
-    date: "2023-07-18",
-    purpose: "Vehicle Purchase",
-  },
-  {
-    id: "L-2023-007",
-    user: "David Miller",
-    amount: 12000,
-    term: 30,
-    status: "approved",
-    date: "2023-07-12",
-    purpose: "Home Renovation",
-  },
-  {
-    id: "L-2023-008",
-    user: "Lisa Taylor",
-    amount: 6000,
-    term: 12,
-    status: "ongoing",
-    date: "2023-06-20",
-    purpose: "Education",
-  },
-]
+
+const transformLoanData = (loan: any, userName: string) => ({
+  id: `L-${loan.id.substring(0, 8).toUpperCase()}`, // Shorten the UUID for display
+  user: userName,
+  amount: parseInt(loan.amount, 10), // Convert amount to number
+  term: loan.duration, // Map duration to term
+  status: loan.status.toLowerCase(), // Convert status to lowercase
+  date: new Date(loan.createdAt).toISOString().split("T")[0], // Format date as YYYY-MM-DD
+  purpose: loan.purpose,
+  interest: loan.interestFee,
+  totalPaid: loan.totalPaid,
+  paidMonth: loan.paidMonths,
+  totaldue: loan.totalDue
+});
 
 export default function LoansPage() {
+  const [loans, setLoans] = useState([]);
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [activeTab, setActiveTab] = useState("all")
@@ -104,7 +45,41 @@ export default function LoansPage() {
   const [isActionDialogOpen, setIsActionDialogOpen] = useState(false)
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null)
 
-  // Filter loans based on search term, status, and active tab
+
+  const fetchUserName = async (userId: string) => {
+    try {
+      const response = await axios.get(`http://localhost:3001/user/find/${userId}`);
+      return response.data.name;
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      return "Unknown User";
+    }
+  };
+
+  // Fetch loan data and transform it
+  const fetchLoans = async () => {
+    try {
+      const response = await axios.get("http://localhost:3001/loan/all");
+      const loanData = response.data;
+
+      const transformedLoans = await Promise.all(
+        loanData.map(async (loan: any) => {
+          const userName = await fetchUserName(loan.userId);
+          return transformLoanData(loan, userName);
+        })
+      );
+      setLoans(transformedLoans);
+    } catch (error) {
+      console.error("Error fetching loans:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchLoans();
+  }, []);
+
+
+
   const filteredLoans = loans.filter((loan) => {
     const matchesSearch =
       loan.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -242,7 +217,9 @@ export default function LoansPage() {
                         <TableHead>Loan ID</TableHead>
                         <TableHead>User</TableHead>
                         <TableHead className="hidden md:table-cell">Purpose</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="text-left">Amount</TableHead>
+                        <TableHead className="text-left">interest</TableHead>
+                        <TableHead className="text-left">totaldue</TableHead>
                         <TableHead className="hidden md:table-cell">Term</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -261,7 +238,9 @@ export default function LoansPage() {
                             <TableCell className="font-medium">{loan.id}</TableCell>
                             <TableCell>{loan.user}</TableCell>
                             <TableCell className="hidden md:table-cell">{loan.purpose}</TableCell>
-                            <TableCell className="text-right">${loan.amount.toLocaleString()}</TableCell>
+                            <TableCell className="text-left">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(loan.amount)}</TableCell>
+                            <TableCell className="hidden md:table-cell">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(loan.interest)} </TableCell>
+                            <TableCell className="hidden md:table-cell">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(loan.totaldue)} </TableCell>
                             <TableCell className="hidden md:table-cell">{loan.term} months</TableCell>
                             <TableCell>{getStatusBadge(loan.status)}</TableCell>
                             <TableCell className="text-right">
@@ -275,8 +254,8 @@ export default function LoansPage() {
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
                                     onClick={() => {
-                                      setSelectedLoan(loan.id)
-                                      setIsDetailsOpen(true)
+                                      setSelectedLoan(loan.id);
+                                      setIsDetailsOpen(true);
                                     }}
                                   >
                                     <FileText className="mr-2 h-4 w-4" />
@@ -286,9 +265,9 @@ export default function LoansPage() {
                                     <>
                                       <DropdownMenuItem
                                         onClick={() => {
-                                          setSelectedLoan(loan.id)
-                                          setActionType("approve")
-                                          setIsActionDialogOpen(true)
+                                          setSelectedLoan(loan.id);
+                                          setActionType("approve");
+                                          setIsActionDialogOpen(true);
                                         }}
                                       >
                                         <ThumbsUp className="mr-2 h-4 w-4 text-green-600" />
@@ -296,9 +275,9 @@ export default function LoansPage() {
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() => {
-                                          setSelectedLoan(loan.id)
-                                          setActionType("reject")
-                                          setIsActionDialogOpen(true)
+                                          setSelectedLoan(loan.id);
+                                          setActionType("reject");
+                                          setIsActionDialogOpen(true);
                                         }}
                                       >
                                         <ThumbsDown className="mr-2 h-4 w-4 text-red-600" />
@@ -307,13 +286,25 @@ export default function LoansPage() {
                                     </>
                                   )}
                                   {loan.status === "approved" && (
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setSelectedLoan(loan.id);
+                                        setActionType("mark-ongoing");
+                                        setIsActionDialogOpen(true);
+                                      }}
+                                    >
                                       <Clock className="mr-2 h-4 w-4 text-purple-600" />
                                       <span className="text-purple-600">Mark as Ongoing</span>
                                     </DropdownMenuItem>
                                   )}
                                   {loan.status === "ongoing" && (
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setSelectedLoan(loan.id);
+                                        setActionType("mark-completed");
+                                        setIsActionDialogOpen(true);
+                                      }}
+                                    >
                                       <Check className="mr-2 h-4 w-4 text-green-600" />
                                       <span className="text-green-600">Mark as Completed</span>
                                     </DropdownMenuItem>
@@ -325,6 +316,7 @@ export default function LoansPage() {
                         ))
                       )}
                     </TableBody>
+
                   </Table>
                 </div>
               </div>
@@ -367,10 +359,27 @@ export default function LoansPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Paid</p>
+                    <p className="text-lg font-semibold">{loans.find((loan) => loan.id === selectedLoan)?.totalPaid}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Paid Month</p>
+                    <p className="text-lg font-semibold">{loans.find((loan) => loan.id === selectedLoan)?.paidMonth}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <p className="text-sm font-medium text-muted-foreground">Amount</p>
                     <p className="text-lg font-semibold">
-                      ${loans.find((loan) => loan.id === selectedLoan)?.amount.toLocaleString()}
+                      {selectedLoan && loans.find((loan) => loan.id === selectedLoan) ? (
+                        new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(
+                          loans.find((loan) => loan.id === selectedLoan)!.amount // `!` ensures TypeScript recognizes it's not undefined
+                        )
+                      ) : (
+                        "Rp 0"
+                      )}
                     </p>
+
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Term</p>
@@ -378,6 +387,35 @@ export default function LoansPage() {
                       {loans.find((loan) => loan.id === selectedLoan)?.term} months
                     </p>
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">interest</p>
+                    <p className="text-lg font-semibold">
+                      {selectedLoan && loans.find((loan) => loan.id === selectedLoan) ? (
+                        new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(
+                          loans.find((loan) => loan.id === selectedLoan)!.interest // `!` ensures TypeScript recognizes it's not undefined
+                        )
+                      ) : (
+                        "Rp 0"
+                      )}
+                    </p>
+
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">total due</p>
+                    <p className="text-lg font-semibold">
+                      {selectedLoan && loans.find((loan) => loan.id === selectedLoan) ? (
+                        new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(
+                          loans.find((loan) => loan.id === selectedLoan)!.totaldue // `!` ensures TypeScript recognizes it's not undefined
+                        )
+                      ) : (
+                        "Rp 0"
+                      )}
+                    </p>
+
+                  </div>
+                  
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Purpose</p>

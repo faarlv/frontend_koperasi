@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Check, Download, Edit, MoreHorizontal, Plus, Search, Trash, Upload, User, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -18,92 +18,101 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-
-// Sample user data
-const users = [
-  {
-    id: 1,
-    name: "John Doe",
-    email: "john.doe@example.com",
-    phone: "+1 (555) 123-4567",
-    status: "active",
-    joinDate: "2023-01-15",
-  },
-  {
-    id: 2,
-    name: "Jane Smith",
-    email: "jane.smith@example.com",
-    phone: "+1 (555) 987-6543",
-    status: "active",
-    joinDate: "2023-02-20",
-  },
-  {
-    id: 3,
-    name: "Robert Johnson",
-    email: "robert.johnson@example.com",
-    phone: "+1 (555) 456-7890",
-    status: "inactive",
-    joinDate: "2023-03-10",
-  },
-  {
-    id: 4,
-    name: "Emily Davis",
-    email: "emily.davis@example.com",
-    phone: "+1 (555) 234-5678",
-    status: "active",
-    joinDate: "2023-04-05",
-  },
-  {
-    id: 5,
-    name: "Michael Wilson",
-    email: "michael.wilson@example.com",
-    phone: "+1 (555) 876-5432",
-    status: "inactive",
-    joinDate: "2023-05-12",
-  },
-  {
-    id: 6,
-    name: "Sarah Brown",
-    email: "sarah.brown@example.com",
-    phone: "+1 (555) 345-6789",
-    status: "active",
-    joinDate: "2023-06-18",
-  },
-  {
-    id: 7,
-    name: "David Miller",
-    email: "david.miller@example.com",
-    phone: "+1 (555) 765-4321",
-    status: "active",
-    joinDate: "2023-07-22",
-  },
-]
+import axios from "axios"
+import { format } from "date-fns"
 
 export default function UsersPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [isAddUserOpen, setIsAddUserOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<number | null>(null)
+  const [users, setUsers] = useState([]); // Store users from API
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [newUser, setNewUser] = useState({ name: "", email: "", phone: "", password: "" });
+  const [editedUser, setEditedUser] = useState({ name: "", email: "", phone: "", password: "" });
+
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await axios.get("http://localhost:3001/user/all"); // Replace with your actual API
+        setUsers(response.data);
+      } catch (err) {
+        console.error("Error fetching users:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+
+  
+
+  const handleAddUser = async () => {
+    try {
+      const response = await axios.post("http://localhost:3001/user/add", newUser);
+      console.log(newUser)
+      setUsers([...users, response.data]); // Update the user list
+      setIsAddUserOpen(false);
+      setNewUser({ name: "", email: "", phone: "", password: "" }); // Reset form
+    } catch (err) {
+      console.error("Error adding user:", err);
+    }
+  };
 
   // Filter users based on search term and status
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.phone.includes(searchTerm)
+      user.phone.includes(searchTerm);
 
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter
+    const matchesStatus = statusFilter === "all" || user.role === statusFilter;
 
-    return matchesSearch && matchesStatus
-  })
+    return matchesSearch && matchesStatus;
+  });
 
-  const handleDeleteUser = () => {
-    // In a real app, you would call an API to delete the user
-    console.log(`Deleting user with ID: ${selectedUser}`)
-    setIsDeleteDialogOpen(false)
-    setSelectedUser(null)
-  }
+  const handleDeleteUser = async () => {
+    console.log(selectedUser)
+    if (selectedUser !== null) {
+      try {
+        await axios.delete(`http://localhost:3001/user/delete/${selectedUser}`); // Send DELETE request
+        setUsers(users.filter((user) => user.id !== selectedUser)); // Update state
+        console.log(`Deleted user with ID: ${selectedUser}`);
+      } catch (err) {
+        console.error("Error deleting user:", err);
+      } finally {
+        setIsDeleteDialogOpen(false);
+        setSelectedUser(null);
+      }
+    }
+  };
+
+  const openEditDialog = (user) => {
+    setSelectedUser(user.id); // Set selected user ID
+    setEditedUser({ ...user }); // Ensure a new object is created
+    setIsEditUserOpen(true);
+  };
+  
+  
+
+  // Handle Edit User
+  const handleEditUser = async (updatedUser) => {
+    try {
+      const response = await axios.put(`http://localhost:3001/user/update/${updatedUser.id}`, updatedUser);
+      setUsers(users.map((user) => (user.id === updatedUser.id ? response.data : user))); // Update user list
+      setIsEditUserOpen(false);
+      setSelectedUser(null);
+    } catch (err) {
+      console.error("Error updating user:", err);
+    }
+  };
+  
 
   return (
     <div className="flex flex-col gap-4">
@@ -140,8 +149,8 @@ export default function UsersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="MEMBER">member</SelectItem>
+                    <SelectItem value="ADMIN">admin</SelectItem>
                   </SelectContent>
                 </Select>
                 <DropdownMenu>
@@ -182,6 +191,7 @@ export default function UsersPage() {
                     <TableHead>Email</TableHead>
                     <TableHead className="hidden md:table-cell">Phone</TableHead>
                     <TableHead className="hidden md:table-cell">Join Date</TableHead>
+                    <TableHead>Password</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -199,19 +209,16 @@ export default function UsersPage() {
                         <TableCell className="font-medium">{user.name}</TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell className="hidden md:table-cell">{user.phone}</TableCell>
-                        <TableCell className="hidden md:table-cell">{user.joinDate}</TableCell>
+                        <TableCell className="hidden md:table-cell">{format(new Date(user.createdAt), "PPpp")   }</TableCell>
+                        <TableCell className="hidden md:table-cell">{user.password}</TableCell>
                         <TableCell>
                           <div
                             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              user.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                              user.role === "ADMIN" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                             }`}
                           >
-                            {user.status === "active" ? (
-                              <Check className="mr-1 h-3 w-3" />
-                            ) : (
-                              <X className="mr-1 h-3 w-3" />
-                            )}
-                            {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                            
+                            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -222,12 +229,10 @@ export default function UsersPage() {
                                 <span className="sr-only">Open menu</span>
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <User className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
+                            <DropdownMenuContent align="end" >
+                              <DropdownMenuItem onClick={()=>{
+                              openEditDialog(user)
+                            }}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit User
                               </DropdownMenuItem>
@@ -266,43 +271,89 @@ export default function UsersPage() {
               <Label htmlFor="name" className="text-right">
                 Name
               </Label>
-              <Input id="name" className="col-span-3" />
+              <Input id="name" className="col-span-3" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">
                 Email
               </Label>
-              <Input id="email" type="email" className="col-span-3" />
+              <Input id="email" type="email" className="col-span-3" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}/>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="phone" className="text-right">
                 Phone
               </Label>
-              <Input id="phone" className="col-span-3" />
+              <Input id="phone" className="col-span-3" value={newUser.phone} onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}/>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="status" className="text-right">
-                Status
+              <Label htmlFor="text" className="text-right">
+                password
               </Label>
-              <Select defaultValue="active">
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input id="password" className="col-span-3"  value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}/>
             </div>
+            
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddUserOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit">Save User</Button>
+            <Button onClick={handleAddUser}>Save User</Button>         
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+  <DialogContent className="sm:max-w-[425px]">
+    <DialogHeader>
+      <DialogTitle>Edit User</DialogTitle>
+      <DialogDescription>Edit user account. Click save when you're done.</DialogDescription>
+    </DialogHeader>
+    <div className="grid gap-4 py-4">
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="name" className="text-right">Name</Label>
+        <Input 
+          id="name" 
+          className="col-span-3" 
+          value={editedUser?.name || ""} 
+          onChange={(e) => setEditedUser({ ...editedUser, name: e.target.value })} 
+        />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="email" className="text-right">Email</Label>
+        <Input 
+          id="email" 
+          type="email" 
+          className="col-span-3" 
+          value={editedUser?.email || ""} 
+          onChange={(e) => setEditedUser({ ...editedUser, email: e.target.value })} 
+        />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="phone" className="text-right">Phone</Label>
+        <Input 
+          id="phone" 
+          className="col-span-3" 
+          value={editedUser?.phone || ""} 
+          onChange={(e) => setEditedUser({ ...editedUser, phone: e.target.value })} 
+        />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="password" className="text-right">Password</Label>
+        <Input 
+          id="password" 
+          className="col-span-3"  
+          value={editedUser?.password || ""} 
+          onChange={(e) => setEditedUser({ ...editedUser, password: e.target.value })} 
+        />
+      </div>
+    </div>
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>Cancel</Button>
+      <Button onClick={() => handleEditUser(editedUser)}>Save Changes</Button>         
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
