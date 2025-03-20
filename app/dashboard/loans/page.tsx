@@ -23,6 +23,7 @@ import axios from "axios"
 
 const transformLoanData = (loan: any, userName: string) => ({
   id: `L-${loan.id.substring(0, 8).toUpperCase()}`, // Shorten the UUID for display
+  fullId: loan.id,
   user: userName,
   amount: parseInt(loan.amount, 10), // Convert amount to number
   term: loan.duration, // Map duration to term
@@ -36,7 +37,7 @@ const transformLoanData = (loan: any, userName: string) => ({
 });
 
 export default function LoansPage() {
-  const [loans, setLoans] = useState([]);
+  const [loans, setLoans] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [activeTab, setActiveTab] = useState("all")
@@ -99,16 +100,46 @@ export default function LoansPage() {
     return matchesSearch && matchesStatus && matchesTab
   })
 
-  const handleLoanAction = () => {
-    // In a real app, you would call an API to update the loan status
-    console.log(`${actionType === "approve" ? "Approving" : "Rejecting"} loan with ID: ${selectedLoan}`)
-    setIsActionDialogOpen(false)
-    setSelectedLoan(null)
-    setActionType(null)
-  }
+  const handleLoanAction = async () => {
+    if (!selectedLoan) return;
+
+    // Find the loan object from state using the display ID
+    const loanObj = loans.find(loan => loan.id === selectedLoan);
+    if (!loanObj) {
+      console.error("Loan not found in state");
+      return;
+    }
+
+    const loanId = loanObj.fullId; // Use the full UUID for API calls
+    const newStatus = actionType === "approve" ? "APPROVED" : "REJECTED";
+
+    try {
+      await axios.patch(`http://localhost:3001/loan/${loanId}/status`, {
+        status: newStatus,
+      });
+
+      console.log(`${actionType === "approve" ? "Approved" : "Rejected"} loan with ID: ${loanId}`);
+
+
+      setLoans(prevLoans =>
+        prevLoans.map(loan =>
+          loan.id === selectedLoan ? { ...loan, status: newStatus } : loan
+        )
+      );
+
+    } catch (error) {
+      console.error("Error updating loan status:", error.response?.data || error.message);
+    }
+
+    setIsActionDialogOpen(false);
+    setSelectedLoan(null);
+    setActionType(null);
+  };
+
+
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "pending":
         return (
           <div className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
@@ -285,30 +316,6 @@ export default function LoansPage() {
                                       </DropdownMenuItem>
                                     </>
                                   )}
-                                  {loan.status === "approved" && (
-                                    <DropdownMenuItem
-                                      onClick={() => {
-                                        setSelectedLoan(loan.id);
-                                        setActionType("mark-ongoing");
-                                        setIsActionDialogOpen(true);
-                                      }}
-                                    >
-                                      <Clock className="mr-2 h-4 w-4 text-purple-600" />
-                                      <span className="text-purple-600">Mark as Ongoing</span>
-                                    </DropdownMenuItem>
-                                  )}
-                                  {loan.status === "ongoing" && (
-                                    <DropdownMenuItem
-                                      onClick={() => {
-                                        setSelectedLoan(loan.id);
-                                        setActionType("mark-completed");
-                                        setIsActionDialogOpen(true);
-                                      }}
-                                    >
-                                      <Check className="mr-2 h-4 w-4 text-green-600" />
-                                      <span className="text-green-600">Mark as Completed</span>
-                                    </DropdownMenuItem>
-                                  )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </TableCell>
@@ -342,9 +349,10 @@ export default function LoansPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Status</p>
-                    <p className="text-lg font-semibold">
+                    <div className="text-lg font-semibold">
                       {getStatusBadge(loans.find((loan) => loan.id === selectedLoan)?.status || "")}
-                    </p>
+                    </div>
+
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -415,7 +423,7 @@ export default function LoansPage() {
                     </p>
 
                   </div>
-                  
+
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Purpose</p>
