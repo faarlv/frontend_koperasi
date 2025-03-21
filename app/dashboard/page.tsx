@@ -57,7 +57,7 @@ export default function DashboardPage() {
         // Update stats
         setStats([
           { title: "Total Users", value: totalUsers.toString(),  icon: Users },
-          { title: "Total Balance",   value: new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(totalBalance),    icon: DollarSign },
+          { title: "  ce",   value: new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(totalBalance),    icon: DollarSign },
         ]);
       } catch (error) {
         console.error("Error fetching dashboard stats:", error);

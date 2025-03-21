@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowDown, ArrowUp, Calendar, Download, Filter, Search, SortAsc, SortDesc } from "lucide-react"
+import { useEffect, useState } from "react"
+import { ArrowDown, ArrowUp, Calendar, DollarSign, Download, Filter, Plus, Search, SortAsc, SortDesc, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,194 +9,190 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import axios from "axios"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
-// Sample transaction data
-const transactions = [
-  {
-    id: "TRX-001",
-    user: "John Doe",
-    type: "deposit",
-    amount: 5000,
-    date: "2023-07-15",
-    description: "Loan Disbursement",
-  },
-  {
-    id: "TRX-002",
-    user: "Jane Smith",
-    type: "withdrawal",
-    amount: 1200,
-    date: "2023-07-14",
-    description: "Installment Payment",
-  },
-  {
-    id: "TRX-003",
-    user: "Robert Johnson",
-    type: "deposit",
-    amount: 7500,
-    date: "2023-07-12",
-    description: "Loan Disbursement",
-  },
-  {
-    id: "TRX-004",
-    user: "Emily Davis",
-    type: "withdrawal",
-    amount: 850,
-    date: "2023-07-10",
-    description: "Installment Payment",
-  },
-  {
-    id: "TRX-005",
-    user: "Michael Wilson",
-    type: "deposit",
-    amount: 3000,
-    date: "2023-07-08",
-    description: "Loan Disbursement",
-  },
-  {
-    id: "TRX-006",
-    user: "Sarah Brown",
-    type: "withdrawal",
-    amount: 1500,
-    date: "2023-07-05",
-    description: "Installment Payment",
-  },
-  {
-    id: "TRX-007",
-    user: "David Miller",
-    type: "deposit",
-    amount: 12000,
-    date: "2023-07-03",
-    description: "Loan Disbursement",
-  },
-  {
-    id: "TRX-008",
-    user: "Lisa Taylor",
-    type: "withdrawal",
-    amount: 2000,
-    date: "2023-07-01",
-    description: "Installment Payment",
-  },
-]
 
-// Sample user balances
-const userBalances = [
-  {
-    user: "John Doe",
-    balance: 3800,
-    loans: 1,
-    lastActivity: "2023-07-15",
-  },
-  {
-    user: "Jane Smith",
-    balance: 8800,
-    loans: 1,
-    lastActivity: "2023-07-14",
-  },
-  {
-    user: "Robert Johnson",
-    balance: 7500,
-    loans: 1,
-    lastActivity: "2023-07-12",
-  },
-  {
-    user: "Emily Davis",
-    balance: 14150,
-    loans: 1,
-    lastActivity: "2023-07-10",
-  },
-  {
-    user: "Michael Wilson",
-    balance: 3000,
-    loans: 1,
-    lastActivity: "2023-07-08",
-  },
-]
 
 export default function BalancePage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [typeFilter, setTypeFilter] = useState("all")
-  const [sortField, setSortField] = useState<"date" | "amount">("date")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [sortField, setSortField] = useState<"date" | "amount">("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [isAddTransaction, setIsAddTransaction] = useState(false);
+  const [users, setUsers] = useState([]); // Available users for transactions
+  const [transactions, setTransactions] = useState([]); // Store transaction data
+  const [userBalances, setUserBalances] = useState([]); // User balance data
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [amount, setAmount] = useState<string>("");
+  const [type, setType] = useState<"deposit" | "withdraw">("deposit");
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const [stats, setStats] = useState([
+    { title: "Total Users", value: "0", icon: Users },
+    { title: "Total Balance", value: "0", icon: DollarSign },
+  ]);
+
+  // Fetch users, balances, and transactions
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [usersRes, balanceRes, transactionsRes, userBalancesRes] = await Promise.all([
+          axios.get("http://localhost:3001/user/all"),
+          axios.get("http://localhost:3001/balance/total"),
+          axios.get("http://localhost:3001/transaction/all"),
+          axios.get("http://localhost:3001/balance/all"),
+        ]);
+  
+        const usersMap = usersRes.data.reduce((acc, user) => {
+          acc[user.id] = user.name; // Map userId to name
+          return acc;
+        }, {} as Record<string, string>);
+  
+        const formattedTransactions = transactionsRes.data.map((transaction) => ({
+          ...transaction,
+          userName: usersMap[transaction.userId] || "Unknown User",
+          formattedId: transaction.id.slice(0, 8), // Shorten UUID
+          formattedAmount: new Intl.NumberFormat("id-ID", {
+            style: "currency",
+            currency: "IDR",
+          }).format(Number(transaction.amount)), // Format amount as currency
+          formattedDate: new Date(transaction.createdAt).toLocaleDateString("id-ID", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }), // Format date
+          createAt: new Date(transaction.createdAt).toLocaleDateString("id-ID", {
+            hour: "numeric",
+            minute: "numeric",
+            second: "numeric"
+          }), // Format date
+        }));
+
+        const formattedUserBalances = userBalancesRes.data.map((balance) => ({
+          ...balance,
+          user: usersMap[balance.userId] || "Unknown User", // Attach username
+          id: balance.id.slice(0, 8), // Shorten UUID
+          balance: new Intl.NumberFormat("id-ID", {
+            style: "currency",
+            currency: "IDR",
+          }).format(Number(balance.totalBalance)), // Format balance
+          updateAt: new Date(balance.updatedAt).toLocaleDateString("id-ID", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+        }));
+        
+        setUserBalances(formattedUserBalances)
+        setUsers(usersRes.data);
+        setTransactions(formattedTransactions);
+        setStats([
+          { title: "Total Users", value: usersRes.data.length.toString(), icon: Users },
+          {
+            title: "Total Balance",
+            value: new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(
+              balanceRes.data.totalBalance
+            ),
+            icon: DollarSign,
+          },
+        ]);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+      setLoading(false);
+    };
+  
+    fetchData();
+  }, []);
+  
 
   // Filter transactions based on search term and type
   const filteredTransactions = transactions.filter((transaction) => {
     const matchesSearch =
       transaction.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       transaction.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.description.toLowerCase().includes(searchTerm.toLowerCase())
+      transaction.description.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesType = typeFilter === "all" || transaction.type === typeFilter
+    const matchesType = typeFilter === "all" || transaction.type === typeFilter;
 
-    return matchesSearch && matchesType
-  })
+    return matchesSearch && matchesType;
+  });
 
   // Sort transactions
   const sortedTransactions = [...filteredTransactions].sort((a, b) => {
     if (sortField === "date") {
       return sortDirection === "asc"
         ? new Date(a.date).getTime() - new Date(b.date).getTime()
-        : new Date(b.date).getTime() - new Date(a.date).getTime()
+        : new Date(b.date).getTime() - new Date(a.date).getTime();
     } else {
-      return sortDirection === "asc" ? a.amount - b.amount : b.amount - a.amount
+      return sortDirection === "asc" ? a.amount - b.amount : b.amount - a.amount;
     }
-  })
+  });
 
   // Calculate total balance
-  const totalBalance = userBalances.reduce((sum, user) => sum + user.balance, 0)
+  const totalBalance = userBalances.reduce((sum, user) => sum + user.balance, 0);
+
+  const handleSubmit = async () => {
+    if (!selectedUserId || !amount || !type) {
+      alert("Please fill in all fields.");
+      return;
+    }
+  
+    const transactionData = {
+      userId: selectedUserId,
+      amount: Number(amount),
+      type,
+      date: new Date(),
+    };
+  
+    setLoading(true);
+  
+    try {
+      const response = await axios.post("http://localhost:3001/transaction/add", transactionData);
+  
+      if (response.status === 201) {
+        setTransactions((prev) => [...prev, response.data]); // Add new transaction to the list
+        setIsAddTransaction(false); // Close the modal
+        setSelectedUserId("");
+        setAmount("");
+        setType("deposit");
+      }
+    } catch (error) {
+      console.error("Error adding transaction:", error);
+      alert("Failed to add transaction.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-3xl font-bold">Balance Management</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Balance Management</h1>
+        <Button onClick={() => setIsAddTransaction(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add User
+        </Button>
+      </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium text-muted-foreground">Total Balance</p>
-              <p className="text-2xl font-bold">${totalBalance.toLocaleString()}</p>
-            </div>
-            <div className="mt-4 flex items-center">
-              <ArrowUp className="mr-1 h-4 w-4 text-green-600" />
-              <span className="text-sm font-medium text-green-600">+12.5% from last month</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium text-muted-foreground">Total Deposits</p>
-              <p className="text-2xl font-bold">$27,500</p>
-            </div>
-            <div className="mt-4 flex items-center">
-              <ArrowUp className="mr-1 h-4 w-4 text-green-600" />
-              <span className="text-sm font-medium text-green-600">+8.2% from last month</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium text-muted-foreground">Total Withdrawals</p>
-              <p className="text-2xl font-bold">$5,550</p>
-            </div>
-            <div className="mt-4 flex items-center">
-              <ArrowDown className="mr-1 h-4 w-4 text-red-600" />
-              <span className="text-sm font-medium text-red-600">-3.4% from last month</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium text-muted-foreground">Active Users</p>
-              <p className="text-2xl font-bold">{userBalances.length}</p>
-            </div>
-            <div className="mt-4 flex items-center">
-              <ArrowUp className="mr-1 h-4 w-4 text-green-600" />
-              <span className="text-sm font-medium text-green-600">+5.1% from last month</span>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+        {stats
+          .map((stat, index) => (
+            <Card key={index} className="w-full">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                    <p className="text-2xl font-bold">{stat.value}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -279,30 +275,29 @@ export default function BalancePage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      sortedTransactions.map((transaction) => (
+                      transactions.map((transaction) => (
                         <TableRow key={transaction.id}>
-                          <TableCell className="font-medium">{transaction.id}</TableCell>
-                          <TableCell>{transaction.user}</TableCell>
-                          <TableCell className="hidden md:table-cell">{transaction.date}</TableCell>
+                          <TableCell className="font-medium">{transaction.formattedId}</TableCell>
+                          <TableCell>{transaction.userName}</TableCell>
+                          <TableCell className="hidden md:table-cell">{transaction.createAt}</TableCell>
                           <TableCell>
                             <div
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                transaction.type === "deposit"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-red-100 text-red-800"
-                              }`}
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${transaction.type === "deposit"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                                }`}
                             >
                               {transaction.type === "deposit" ? (
                                 <ArrowUp className="mr-1 h-3 w-3" />
                               ) : (
                                 <ArrowDown className="mr-1 h-3 w-3" />
                               )}
-                              {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+                              {transaction.type}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <span className={transaction.type === "deposit" ? "text-green-600" : "text-red-600"}>
-                              {transaction.type === "deposit" ? "+" : "-"}${transaction.amount.toLocaleString()}
+                              {transaction.type === "deposit" ? "+" : "-"}{transaction.formattedAmount}
                             </span>
                           </TableCell>
                         </TableRow>
@@ -325,19 +320,19 @@ export default function BalancePage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Id</TableHead>
                     <TableHead>User</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
-                    <TableHead className="hidden md:table-cell">Active Loans</TableHead>
+                    <TableHead className="text-left">Balance</TableHead>
                     <TableHead className="hidden md:table-cell">Last Activity</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {userBalances.map((user, index) => (
                     <TableRow key={index}>
+                      <TableCell className="font-medium">{user.id}</TableCell>
                       <TableCell className="font-medium">{user.user}</TableCell>
-                      <TableCell className="text-right">${user.balance.toLocaleString()}</TableCell>
-                      <TableCell className="hidden md:table-cell">{user.loans}</TableCell>
-                      <TableCell className="hidden md:table-cell">{user.lastActivity}</TableCell>
+                      <TableCell className="text-left">{user.balance.toLocaleString()}</TableCell>
+                      <TableCell className="hidden md:table-cell">{user.updateAt}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -346,7 +341,72 @@ export default function BalancePage() {
           </CardContent>
         </Card>
       </div>
+
+
+      <Dialog open={isAddTransaction} onOpenChange={setIsAddTransaction}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New Transaction</DialogTitle>
+            <DialogDescription>Choose a user and enter transaction details.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* User Dropdown */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">User</Label>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select a user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name} {/* Display name, but send user.id */}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Amount Input */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Amount</Label>
+              <Input
+                type="number"
+                className="col-span-3"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
+
+            {/* Transaction Type Dropdown */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Type</Label>
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="deposit">Deposit</SelectItem>
+                  <SelectItem value="withdraw">Withdraw</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsOpen(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={loading}>
+              {loading ? "Processing..." : "Add Transaction"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
+
+
   )
 }
 
